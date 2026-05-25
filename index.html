@@ -439,7 +439,7 @@ function buildMsg(m, idx) {
     <button class="action-btn" onclick="quickAction('simplify','${escAttr(m.content)}')">✂️ Simplify</button>
     <button class="action-btn" onclick="copyText('${escAttr(m.content)}')">📋 Copy</button>
   </div>`:'';
-  return`<div class="msg-row">${av}<div class="msg-content"><div class="msg-meta"><span class="msg-name ${u?'user':'ai'}">${u?esc(S.userName||'You'):'Venkat's AI Hi❤️LO'}</span>${modelBadge}</div>${body}${actions}</div></div>`;
+  return`<div class="msg-row">${av}<div class="msg-content"><div class="msg-meta"><span class="msg-name ${u?'user':'ai'}">${u?esc(S.userName||'You'):"Venkat’s AI Hi❤️LO"}</span>${modelBadge}</div>${body}${actions}</div></div>`;
 }
 
 function renderMd(txt) {
@@ -603,7 +603,7 @@ function showToast(msg,type=''){const t=document.getElementById('toast');t.textC
 function exportChat(){
   const conv=S.currentId&&S.conversations[S.currentId];
   if(!conv?.messages?.length){showToast('No messages to export','error');return;}
-  const md=conv.messages.map(m=>`**${m.role==='user'?(S.userName||'You'):'Venkat's AI Hi❤️LO'}${m.model?' ['+MODELS[m.model]?.label+']':''}:**\n\n${m.content}`).join('\n\n---\n\n');
+  const md=conv.messages.map(m=>`**${m.role==='user'?(S.userName||'You'):"Venkat's AI Hi❤️LO"}${m.model?' ['+MODELS[m.model]?.label+']':''}:**\n\n${m.content}`).join('\n\n---\n\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));a.download=(conv.title||'chat').replace(/[^a-z0-9]/gi,'_')+'.md';a.click();showToast('Exported!','success');
 }
 </script>
