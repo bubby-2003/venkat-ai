@@ -69,6 +69,20 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
   .made-by { text-align:center;font-size:11px;color:var(--text3);padding-top:8px; }
   .made-by span { background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700; }
+  /* settings */
+  .btn-settings-toggle { width:100%;padding:7px 10px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;transition:all .15s; }
+  .btn-settings-toggle:hover { color:var(--text);border-color:var(--accent); }
+  .settings-panel { display:none;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.15);border-radius:9px;padding:10px;margin-bottom:8px; }
+  .settings-panel.open { display:block; }
+  .settings-row { margin-bottom:8px; }
+  .settings-label { font-size:11px;color:var(--text2);font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:5px; }
+  .settings-input { width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none;transition:border-color .15s; }
+  .settings-input:focus { border-color:var(--accent); }
+  .settings-hint { font-size:10px;color:var(--text3);margin-top:3px;line-height:1.4; }
+  .settings-hint a { color:var(--accent3);text-decoration:none; }
+  .btn-save-key { width:100%;padding:6px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);margin-top:6px;transition:opacity .15s; }
+  .btn-save-key:hover { opacity:.85; }
+  .key-status { font-size:10px;text-align:center;margin-top:4px;height:14px; }
 
   /* ── Main ── */
   #main { flex:1;display:flex;flex-direction:column;height:100%;overflow:hidden;min-width:0; }
@@ -232,6 +246,19 @@
       <div class="auto-dot"></div>
       <span class="auto-text">Auto Model</span>
       <span class="auto-model-name" id="sidebar-model-name">GPT-4o mini</span>
+    </div>
+    <button class="btn-settings-toggle" onclick="toggleSettings()">
+      <span>⚙️ API Key Settings</span>
+      <span id="key-badge" style="color:var(--green);display:none">✓ Key set</span>
+    </button>
+    <div class="settings-panel" id="settings-panel">
+      <div class="settings-row">
+        <div class="settings-label">🔑 Groq API Key <span style="color:var(--green);font-size:10px">(100% FREE)</span></div>
+        <input class="settings-input" type="password" id="groq-key-input" placeholder="gsk_…" autocomplete="off"/>
+        <div class="settings-hint">No popup, fastest AI. Get free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a> — no credit card needed.</div>
+        <button class="btn-save-key" onclick="saveGroqKey()">💾 Save Key</button>
+        <div class="key-status" id="key-status"></div>
+      </div>
     </div>
     <div class="made-by">Built by <span>Venkat's AI Hi❤️LO</span></div>
   </div>
@@ -533,41 +560,52 @@ async function sendMessage() {
   box.insertAdjacentHTML('beforeend',`<div class="msg-row" id="${tid}"><div class="msg-avatar ai">🤖</div><div class="msg-content"><div class="msg-meta"><span class="msg-name ai">Venkat's AI Hi❤️LO</span><span class="msg-model-badge">${mInfo.label}</span></div><div class="msg-body" id="${tid}b"><div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Thinking with ${mInfo.label}…</span></div></div></div>`);
   box.scrollTop=box.scrollHeight;
 
-  // Puter.js model mapping (primary backend — free, no key, no signup)
-  const puterModel = {
-    'openai':'gpt-4o-mini', 'openai-large':'gpt-4o', 'llama':'gpt-4o',
-    'mistral':'gpt-4o-mini', 'mistral-large':'gpt-4o', 'llamalight':'gpt-4o-mini'
-  }[model]||'gpt-4o-mini';
-
-  // Pollinations fallback model mapping
-  const safeModel = {
-    'openai':'openai','openai-large':'openai-large','llama':'llama',
-    'mistral':'mistral','mistral-large':'mistral-large','llamalight':'openai'
-  }[model]||'openai';
+  // Model mappings
+  const puterModel  = {'openai':'gpt-4o-mini','openai-large':'gpt-4o','llama':'gpt-4o','mistral':'gpt-4o-mini','mistral-large':'gpt-4o','llamalight':'gpt-4o-mini'}[model]||'gpt-4o-mini';
+  const groqModelId = {'openai':'llama-3.1-8b-instant','openai-large':'llama-3.3-70b-versatile','llama':'llama-3.3-70b-versatile','mistral':'llama-3.1-8b-instant','mistral-large':'llama-3.3-70b-versatile','llamalight':'llama-3.1-8b-instant'}[model]||'llama-3.1-8b-instant';
+  const safeModel   = {'openai':'openai','openai-large':'openai-large','llama':'llama','mistral':'mistral','mistral-large':'mistral-large','llamalight':'openai'}[model]||'openai';
 
   const bel=document.getElementById(tid+'b');
   let full='';
+  const msgs=[{role:'system',content:SYSTEM},...conv.messages.slice(-6)];
+
   try {
-    // ── PRIMARY: Puter.js — free AI, no API key, no signup required ──
-    let usedPuter=false;
-    if(typeof puter!=='undefined' && puter.ai){
-      try {
-        const msgs=[{role:'system',content:SYSTEM},...conv.messages.slice(-6)];
+    const groqKey=(localStorage.getItem('groq_key')||'').trim();
+
+    // ── TIER 1: Groq (if key saved — fastest, no popup, sub-second) ──
+    if(groqKey){
+      const gr=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+        body:JSON.stringify({model:groqModelId,messages:msgs,temperature:0.7,max_tokens:2048,stream:true})
+      });
+      if(!gr.ok){const e=await gr.json().catch(()=>({}));throw new Error('Groq: '+(e.error?.message||gr.status));}
+      const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
+      while(true){
+        const{done,value}=await reader.read(); if(done) break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n'); buf=lines.pop()||'';
+        for(const line of lines){
+          if(!line.startsWith('data: ')) continue;
+          const d=line.slice(6).trim(); if(d==='[DONE]') break;
+          try{const j=JSON.parse(d);const p=j.choices?.[0]?.delta?.content||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
+        }
+      }
+    }
+
+    // ── TIER 2: Puter.js (free, one-time free sign-in) ──
+    if(!full && typeof puter!=='undefined' && puter.ai){
+      try{
         const stream=await puter.ai.chat(msgs,{model:puterModel,stream:true});
         for await(const chunk of stream){
           const piece=chunk?.text??'';
-          if(piece){
-            full+=piece;
-            if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}
-            box.scrollTop=box.scrollHeight;
-          }
+          if(piece){full+=piece;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}
         }
-        if(full&&full.trim()) usedPuter=true;
-      }catch(pe){ console.warn('Puter.js:',pe.message||pe); full=''; }
+      }catch(pe){console.warn('Puter:',pe.message||pe);full='';}
     }
 
-    // ── FALLBACK: Pollinations GET ──
-    if(!usedPuter){
+    // ── TIER 3: Pollinations GET (final fallback) ──
+    if(!full){
       if(bel) bel.innerHTML='<div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Connecting…</span>';
       const lastMsg=conv.messages[conv.messages.length-1].content;
       const params=new URLSearchParams({model:safeModel,seed:String(Math.floor(Math.random()*99999)),system:SYSTEM.slice(0,500)});
@@ -609,6 +647,33 @@ function useSuggestion(t){const i=document.getElementById('user-input');i.value=
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
 function escAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/"/g,'&quot;').slice(0,300);}
 function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+type;clearTimeout(t._t);t._t=setTimeout(()=>t.className='',3200);}
+/* ═══════════════ SETTINGS ═══════════════ */
+function toggleSettings(){
+  const p=document.getElementById('settings-panel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open')){
+    const k=localStorage.getItem('groq_key')||'';
+    if(k) document.getElementById('groq-key-input').value=k;
+  }
+}
+function saveGroqKey(){
+  const k=(document.getElementById('groq-key-input').value||'').trim();
+  const st=document.getElementById('key-status');
+  const badge=document.getElementById('key-badge');
+  if(k){
+    localStorage.setItem('groq_key',k);
+    st.style.color='var(--green)'; st.textContent='✓ Key saved! AI will use Groq now.';
+    badge.style.display='inline'; showToast('🔑 Groq key saved — fastest AI unlocked!','success');
+  } else {
+    localStorage.removeItem('groq_key');
+    st.style.color='var(--yellow)'; st.textContent='Key cleared.';
+    badge.style.display='none'; showToast('Key removed','');
+  }
+  setTimeout(()=>{ st.textContent=''; },3000);
+}
+// Show key badge on load if key is set
+(function(){ if(localStorage.getItem('groq_key')) document.getElementById('key-badge').style.display='inline'; })();
+
 function exportChat(){
   const conv=S.currentId&&S.conversations[S.currentId];
   if(!conv?.messages?.length){showToast('No messages to export','error');return;}
