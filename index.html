@@ -305,7 +305,7 @@ const MODELS = {
   'llama':         { label:'🦙 Llama 70B',     color:'rgba(52,211,153,.08)',border:'rgba(52,211,153,.3)', text:'var(--green)' },
   'mistral-large': { label:'🌊 Mistral Large', color:'rgba(251,191,36,.08)',border:'rgba(251,191,36,.3)', text:'var(--yellow)' },
   'mistral':       { label:'✨ Mistral',        color:'rgba(99,102,241,.1)', border:'rgba(99,102,241,.3)', text:'var(--accent3)' },
-  'llamalight':    { label:'🚀 Llama 8B',      color:'rgba(52,211,153,.05)',border:'rgba(52,211,153,.2)', text:'var(--green)' },
+  'llamalight':    { label:'⚡ Quick Mode',     color:'rgba(99,102,241,.1)', border:'rgba(99,102,241,.3)', text:'var(--accent3)' },
 };
 
 function detectModel(text) {
@@ -328,9 +328,9 @@ function detectModel(text) {
   if (/\b(explain|analyze|analysis|compare|difference|research|study|understand|opinion|pros|cons|advantage|disadvantage|review|evaluate|assess|deep dive|detailed|comprehensive)\b/.test(t)) {
     return { model:'openai', why:'Analysis → GPT-4o mini (balanced)' };
   }
-  // Short/quick question → fastest model
+  // Short/quick question → fast model
   if (words <= 6 || /^(hi|hey|hello|what is|who is|when|where|how many|define|meaning of|what are)\b/.test(t)) {
-    return { model:'llamalight', why:'Quick question → Llama 8B (fastest)' };
+    return { model:'openai', why:'Quick question → GPT-4o mini (fastest)' };
   }
   // Conversational / general
   return { model:'openai', why:'General → GPT-4o mini (best balance)' };
@@ -532,36 +532,40 @@ async function sendMessage() {
   box.insertAdjacentHTML('beforeend',`<div class="msg-row" id="${tid}"><div class="msg-avatar ai">🤖</div><div class="msg-content"><div class="msg-meta"><span class="msg-name ai">Venkat's AI Hi❤️LO</span><span class="msg-model-badge">${mInfo.label}</span></div><div class="msg-body" id="${tid}b"><div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Thinking with ${mInfo.label}…</span></div></div></div>`);
   box.scrollTop=box.scrollHeight;
 
+  // Map to only supported Pollinations models
+  const safeModel = {'openai':'openai','openai-large':'openai-large','llama':'llama','mistral':'mistral','mistral-large':'mistral-large','llamalight':'openai'}[model]||'openai';
+
   let full='';
   try {
-    // ── FAST: GET endpoint directly (fastest, no round-trip overhead) ──
-    const recent = conv.messages.slice(-6); // last 6 msgs for context
-    const history = recent.slice(0,-1)
-      .map(m=>(m.role==='user'?'Human':'Assistant')+': '+m.content)
-      .join('\n\n');
-    const lastMsg = recent[recent.length-1].content;
-    const promptText = history ? `${history}\n\nHuman: ${lastMsg}` : lastMsg;
-    const params = new URLSearchParams({
-      model, system: SYSTEM.slice(0,500),
-      seed: String(Math.floor(Math.random()*99999)),
-      private:'true', nologo:'true'
+    // ── PRIMARY: POST to OpenAI-compatible endpoint ──
+    const r = await fetch(API_OPENAI, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: safeModel,
+        messages: [{role:'system',content:SYSTEM}, ...conv.messages],
+        private: true,
+        seed: Math.floor(Math.random()*99999)
+      })
     });
-    const getUrl = `${API_GET}${encodeURIComponent(promptText.slice(0,1000))}?${params}`;
+    if(r.ok){
+      const ct = r.headers.get('content-type')||'';
+      if(ct.includes('application/json')){
+        const j = await r.json();
+        full = j.choices?.[0]?.message?.content || '';
+      } else {
+        full = await r.text();
+      }
+    }
 
-    let r = await fetch(getUrl);
-
-    // ── Fallback: POST OpenAI if GET fails ──
-    if(!r.ok){
-      const r2=await fetch(API_OPENAI,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model,messages:[{role:'system',content:SYSTEM},...conv.messages],private:true,seed:Math.floor(Math.random()*99999)})
-      });
+    // ── FALLBACK: GET endpoint if POST fails ──
+    if(!full||!full.trim()){
+      const lastMsg = conv.messages[conv.messages.length-1].content;
+      const params = new URLSearchParams({model:safeModel, seed:String(Math.floor(Math.random()*99999)), private:'true'});
+      const getUrl = `${API_GET}${encodeURIComponent(lastMsg.slice(0,800))}?${params}`;
+      const r2 = await fetch(getUrl);
       if(!r2.ok) throw new Error(`AI unavailable (${r2.status}) — please try again`);
-      const ct=r2.headers.get('content-type')||'';
-      full = ct.includes('application/json') ? (await r2.json()).choices?.[0]?.message?.content||'' : await r2.text();
-    } else {
-      full = await r.text();
+      full = await r2.text();
     }
 
     if(!full||!full.trim()) throw new Error('Empty response — please try again');
