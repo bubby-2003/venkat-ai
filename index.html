@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <script src="https://js.puter.com/v2/"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -295,8 +296,8 @@ const SYSTEM = `You are Venkat's AI Hi❤️LO — a smart, helpful AI by Venkat
 Help with: code, debugging, explanations, math, writing, general questions.
 Rules: wrap all code in markdown fences with language. Be concise, clear, warm. Think step-by-step for complex tasks.`;
 
-const API_GET    = 'https://text.pollinations.ai/';
-const API_OPENAI = 'https://text.pollinations.ai/openai';
+// Primary: Puter.js (free, no key) | Fallback: Pollinations GET
+const POLLINATIONS = 'https://text.pollinations.ai/';
 
 /* ═══════════════ AUTO MODEL DETECTION ═══════════════ */
 const MODELS = {
@@ -532,48 +533,52 @@ async function sendMessage() {
   box.insertAdjacentHTML('beforeend',`<div class="msg-row" id="${tid}"><div class="msg-avatar ai">🤖</div><div class="msg-content"><div class="msg-meta"><span class="msg-name ai">Venkat's AI Hi❤️LO</span><span class="msg-model-badge">${mInfo.label}</span></div><div class="msg-body" id="${tid}b"><div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Thinking with ${mInfo.label}…</span></div></div></div>`);
   box.scrollTop=box.scrollHeight;
 
-  // Map to only supported Pollinations models
-  const safeModel = {'openai':'openai','openai-large':'openai-large','llama':'llama','mistral':'mistral','mistral-large':'mistral-large','llamalight':'openai'}[model]||'openai';
+  // Puter.js model mapping (primary backend — free, no key, no signup)
+  const puterModel = {
+    'openai':'gpt-4o-mini', 'openai-large':'gpt-4o', 'llama':'gpt-4o',
+    'mistral':'gpt-4o-mini', 'mistral-large':'gpt-4o', 'llamalight':'gpt-4o-mini'
+  }[model]||'gpt-4o-mini';
 
+  // Pollinations fallback model mapping
+  const safeModel = {
+    'openai':'openai','openai-large':'openai-large','llama':'llama',
+    'mistral':'mistral','mistral-large':'mistral-large','llamalight':'openai'
+  }[model]||'openai';
+
+  const bel=document.getElementById(tid+'b');
   let full='';
   try {
-    // ── PRIMARY: POST to OpenAI-compatible endpoint ──
-    const r = await fetch(API_OPENAI, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: safeModel,
-        messages: [{role:'system',content:SYSTEM}, ...conv.messages],
-        private: true,
-        seed: Math.floor(Math.random()*99999)
-      })
-    });
-    if(r.ok){
-      const ct = r.headers.get('content-type')||'';
-      if(ct.includes('application/json')){
-        const j = await r.json();
-        full = j.choices?.[0]?.message?.content || '';
-      } else {
-        full = await r.text();
-      }
+    // ── PRIMARY: Puter.js — free AI, no API key, no signup required ──
+    let usedPuter=false;
+    if(typeof puter!=='undefined' && puter.ai){
+      try {
+        const msgs=[{role:'system',content:SYSTEM},...conv.messages.slice(-6)];
+        const stream=await puter.ai.chat(msgs,{model:puterModel,stream:true});
+        for await(const chunk of stream){
+          const piece=chunk?.text??'';
+          if(piece){
+            full+=piece;
+            if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}
+            box.scrollTop=box.scrollHeight;
+          }
+        }
+        if(full&&full.trim()) usedPuter=true;
+      }catch(pe){ console.warn('Puter.js:',pe.message||pe); full=''; }
     }
 
-    // ── FALLBACK: GET endpoint if POST fails ──
-    if(!full||!full.trim()){
-      const lastMsg = conv.messages[conv.messages.length-1].content;
-      const params = new URLSearchParams({model:safeModel, seed:String(Math.floor(Math.random()*99999)), private:'true'});
-      const getUrl = `${API_GET}${encodeURIComponent(lastMsg.slice(0,800))}?${params}`;
-      const r2 = await fetch(getUrl);
-      if(!r2.ok) throw new Error(`AI unavailable (${r2.status}) — please try again`);
-      full = await r2.text();
+    // ── FALLBACK: Pollinations GET ──
+    if(!usedPuter){
+      if(bel) bel.innerHTML='<div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Connecting…</span>';
+      const lastMsg=conv.messages[conv.messages.length-1].content;
+      const params=new URLSearchParams({model:safeModel,seed:String(Math.floor(Math.random()*99999)),system:SYSTEM.slice(0,500)});
+      const r=await fetch(`${POLLINATIONS}${encodeURIComponent(lastMsg.slice(0,800))}?${params}`);
+      if(!r.ok) throw new Error('AI service unavailable — please try again in a moment');
+      full=await r.text();
+      if(bel&&full){bel.innerHTML=renderMd(full.trim());bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}
     }
 
     if(!full||!full.trim()) throw new Error('Empty response — please try again');
 
-    const bel=document.getElementById(tid+'b');
-    if(bel){bel.innerHTML=renderMd(full.trim());bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}
-
-    // Add quick action buttons
     const msgRow=document.getElementById(tid);
     if(msgRow){const mc=msgRow.querySelector('.msg-content');if(mc&&!mc.querySelector('.msg-actions')){mc.insertAdjacentHTML('beforeend',`<div class="msg-actions"><button class="action-btn" onclick="quickAction('explain')">💡 Explain more</button><button class="action-btn" onclick="quickAction('example')">📌 Show example</button><button class="action-btn" onclick="quickAction('simplify')">✂️ Simplify</button><button class="action-btn" onclick="copyText('${escAttr(full.trim())}')">📋 Copy</button></div>`);}}
 
