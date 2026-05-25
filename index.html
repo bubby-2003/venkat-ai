@@ -253,11 +253,18 @@
     </button>
     <div class="settings-panel" id="settings-panel">
       <div class="settings-row">
-        <div class="settings-label">🔑 Groq API Key <span style="color:var(--green);font-size:10px">(100% FREE)</span></div>
-        <input class="settings-input" type="password" id="groq-key-input" placeholder="gsk_…" autocomplete="off"/>
-        <div class="settings-hint">No popup, fastest AI. Get free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a> — no credit card needed.</div>
-        <button class="btn-save-key" onclick="saveGroqKey()">💾 Save Key</button>
+        <div class="settings-label">🔑 Groq Key <span style="color:var(--text3);font-size:10px">(built-in)</span></div>
+        <input class="settings-input" type="password" id="groq-key-input" placeholder="gsk_… (leave blank to use built-in)" autocomplete="off"/>
+        <div class="settings-hint">Override built-in key. Get free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a></div>
+        <button class="btn-save-key" onclick="saveGroqKey()">💾 Save</button>
         <div class="key-status" id="key-status"></div>
+      </div>
+      <div class="settings-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+        <div class="settings-label">✨ Gemini Key <span style="color:var(--green);font-size:10px">(works on office WiFi!)</span></div>
+        <input class="settings-input" type="password" id="gemini-key-input" placeholder="AIza…" autocomplete="off"/>
+        <div class="settings-hint">Google's AI — works on corporate networks. Free at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></div>
+        <button class="btn-save-key" onclick="saveGeminiKey()">💾 Save</button>
+        <div class="key-status" id="gemini-key-status"></div>
       </div>
     </div>
     <div class="made-by">Built by <span>Venkat's AI Hi❤️LO</span></div>
@@ -571,30 +578,60 @@ async function sendMessage() {
   const msgs=[{role:'system',content:SYSTEM},...conv.messages.slice(-6)];
 
   try {
-    const groqKey=(localStorage.getItem('groq_key')||GROQ_KEY).trim();
+    const groqKey   = (localStorage.getItem('groq_key')   || GROQ_KEY).trim();
+    const geminiKey = (localStorage.getItem('gemini_key') || '').trim();
 
-    // ── TIER 1: Groq (if key saved — fastest, no popup, sub-second) ──
-    if(groqKey){
-      const gr=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
-        body:JSON.stringify({model:groqModelId,messages:msgs,temperature:0.7,max_tokens:2048,stream:true})
-      });
-      if(!gr.ok){const e=await gr.json().catch(()=>({}));throw new Error('Groq: '+(e.error?.message||gr.status));}
-      const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
-      while(true){
-        const{done,value}=await reader.read(); if(done) break;
-        buf+=dec.decode(value,{stream:true});
-        const lines=buf.split('\n'); buf=lines.pop()||'';
-        for(const line of lines){
-          if(!line.startsWith('data: ')) continue;
-          const d=line.slice(6).trim(); if(d==='[DONE]') break;
-          try{const j=JSON.parse(d);const p=j.choices?.[0]?.delta?.content||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
+    // ── TIER 1: Groq (wrapped — silently falls through if network blocks it) ──
+    if(groqKey && !full){
+      try{
+        const gr=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+          body:JSON.stringify({model:groqModelId,messages:msgs,temperature:0.7,max_tokens:2048,stream:true})
+        });
+        if(gr.ok){
+          const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
+          while(true){
+            const{done,value}=await reader.read(); if(done) break;
+            buf+=dec.decode(value,{stream:true});
+            const lines=buf.split('\n'); buf=lines.pop()||'';
+            for(const line of lines){
+              if(!line.startsWith('data: ')) continue;
+              const d=line.slice(6).trim(); if(d==='[DONE]') break;
+              try{const j=JSON.parse(d);const p=j.choices?.[0]?.delta?.content||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
+            }
+          }
         }
-      }
+      }catch(ge){console.warn('Groq unreachable (network):',ge.message);full='';}
     }
 
-    // ── TIER 2: Puter.js (free, one-time free sign-in) ──
+    // ── TIER 2: Gemini (Google domain — works on corporate networks) ──
+    if(geminiKey && !full){
+      try{
+        const sysPrompt=SYSTEM;
+        const gemContents=msgs.filter(m=>m.role!=='system').map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+        const gr=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({contents:gemContents,systemInstruction:{parts:[{text:sysPrompt}]},generationConfig:{temperature:0.7,maxOutputTokens:2048}})
+        });
+        if(gr.ok){
+          const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
+          while(true){
+            const{done,value}=await reader.read(); if(done) break;
+            buf+=dec.decode(value,{stream:true});
+            const lines=buf.split('\n'); buf=lines.pop()||'';
+            for(const line of lines){
+              if(!line.startsWith('data: ')) continue;
+              const d=line.slice(6).trim(); if(!d||d==='[DONE]') continue;
+              try{const j=JSON.parse(d);const p=j.candidates?.[0]?.content?.parts?.[0]?.text||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
+            }
+          }
+        }
+      }catch(ge){console.warn('Gemini:',ge.message);full='';}
+    }
+
+    // ── TIER 3: Puter.js (free, one-time sign-in) ──
     if(!full && typeof puter!=='undefined' && puter.ai){
       try{
         const stream=await puter.ai.chat(msgs,{model:puterModel,stream:true});
@@ -605,7 +642,7 @@ async function sendMessage() {
       }catch(pe){console.warn('Puter:',pe.message||pe);full='';}
     }
 
-    // ── TIER 3: Pollinations GET (final fallback) ──
+    // ── TIER 4: Pollinations GET (final fallback) ──
     if(!full){
       if(bel) bel.innerHTML='<div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Connecting…</span>';
       const lastMsg=conv.messages[conv.messages.length-1].content;
@@ -653,22 +690,28 @@ function toggleSettings(){
   const p=document.getElementById('settings-panel');
   p.classList.toggle('open');
   if(p.classList.contains('open')){
-    const k=localStorage.getItem('groq_key')||'';
-    if(k) document.getElementById('groq-key-input').value=k;
+    const gk=localStorage.getItem('groq_key')||''; if(gk) document.getElementById('groq-key-input').value=gk;
+    const mk=localStorage.getItem('gemini_key')||''; if(mk) document.getElementById('gemini-key-input').value=mk;
   }
 }
 function saveGroqKey(){
   const k=(document.getElementById('groq-key-input').value||'').trim();
   const st=document.getElementById('key-status');
+  if(k){ localStorage.setItem('groq_key',k); st.style.color='var(--green)'; st.textContent='✓ Groq key saved!'; showToast('🔑 Groq key saved!','success'); }
+  else { localStorage.removeItem('groq_key'); st.style.color='var(--yellow)'; st.textContent='Cleared — using built-in.'; }
+  setTimeout(()=>{ st.textContent=''; },3000);
+}
+function saveGeminiKey(){
+  const k=(document.getElementById('gemini-key-input').value||'').trim();
+  const st=document.getElementById('gemini-key-status');
   const badge=document.getElementById('key-badge');
   if(k){
-    localStorage.setItem('groq_key',k);
-    st.style.color='var(--green)'; st.textContent='✓ Key saved! AI will use Groq now.';
-    badge.style.display='inline'; showToast('🔑 Groq key saved — fastest AI unlocked!','success');
+    localStorage.setItem('gemini_key',k);
+    st.style.color='var(--green)'; st.textContent='✓ Gemini key saved! Zero popup on any network.';
+    badge.style.display='inline'; showToast('✨ Gemini key saved — works on office WiFi!','success');
   } else {
-    localStorage.removeItem('groq_key');
-    st.style.color='var(--yellow)'; st.textContent='Key cleared.';
-    badge.style.display='none'; showToast('Key removed','');
+    localStorage.removeItem('gemini_key');
+    st.style.color='var(--yellow)'; st.textContent='Gemini key cleared.';
   }
   setTimeout(()=>{ st.textContent=''; },3000);
 }
