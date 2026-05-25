@@ -584,25 +584,31 @@ async function sendMessage() {
     if(geminiKey && !full){
       try{
         const gemContents=msgs.filter(m=>m.role!=='system').map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
-        const gr=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({contents:gemContents,systemInstruction:{parts:[{text:SYSTEM}]},generationConfig:{temperature:0.7,maxOutputTokens:2048}})
-        });
-        if(gr.ok){
-          const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
-          while(true){
-            const{done,value}=await reader.read(); if(done) break;
-            buf+=dec.decode(value,{stream:true});
-            const lines=buf.split('\n'); buf=lines.pop()||'';
-            for(const line of lines){
-              if(!line.startsWith('data: ')) continue;
-              const d=line.slice(6).trim(); if(!d||d==='[DONE]') continue;
-              try{const j=JSON.parse(d);const p=j.candidates?.[0]?.content?.parts?.[0]?.text||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
-            }
-          }
+        const gemModels=['gemini-1.5-flash','gemini-1.5-pro','gemini-pro'];
+        for(const gm of gemModels){
+          if(full) break;
+          try{
+            const gr=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${gm}:streamGenerateContent?key=${geminiKey}&alt=sse`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({contents:gemContents,systemInstruction:{parts:[{text:SYSTEM}]},generationConfig:{temperature:0.7,maxOutputTokens:2048}})
+            });
+            if(gr.ok){
+              const reader=gr.body.getReader();const dec=new TextDecoder();let buf='';
+              while(true){
+                const{done,value}=await reader.read(); if(done) break;
+                buf+=dec.decode(value,{stream:true});
+                const lines=buf.split('\n'); buf=lines.pop()||'';
+                for(const line of lines){
+                  if(!line.startsWith('data: ')) continue;
+                  const d=line.slice(6).trim(); if(!d||d==='[DONE]') continue;
+                  try{const j=JSON.parse(d);const p=j.candidates?.[0]?.content?.parts?.[0]?.text||'';if(p){full+=p;if(bel){bel.innerHTML=renderMd(full);bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));}box.scrollTop=box.scrollHeight;}}catch(e){}
+                }
+              }
+            }else{console.warn('Gemini',gm,'status:',gr.status);}
+          }catch(e){console.warn('Gemini',gm,'error:',e.message);}
         }
-      }catch(ge){console.warn('Gemini T1:',ge.message);full='';}
+      }catch(ge){console.warn('Gemini outer:',ge.message);full='';}
     }
 
     // ── TIER 2: Groq (wrapped — silently falls through if network blocks it) ──
@@ -633,7 +639,7 @@ async function sendMessage() {
     if(!full){
       if(bel) bel.innerHTML='<div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Connecting…</span>';
       const lastMsg=conv.messages[conv.messages.length-1].content;
-      const params=new URLSearchParams({model:safeModel,seed:String(Math.floor(Math.random()*99999)),system:SYSTEM.slice(0,500)});
+      const params=new URLSearchParams({model:'openai',seed:String(Math.floor(Math.random()*99999)),system:SYSTEM.slice(0,500)});
       const r=await fetch(`${POLLINATIONS}${encodeURIComponent(lastMsg.slice(0,800))}?${params}`);
       if(!r.ok) throw new Error('AI service unavailable — please try again in a moment');
       full=await r.text();
