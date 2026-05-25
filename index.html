@@ -430,7 +430,7 @@ Rules:
 - Think step-by-step for complex problems
 - Be friendly, professional, and encouraging`;
 
-const API = 'https://text.pollinations.ai/';
+const API_GET    = 'https://text.pollinations.ai/';
 const API_OPENAI = 'https://text.pollinations.ai/openai';
 
 /* ── State ── */
@@ -606,88 +606,65 @@ async function sendMessage() {
   box.scrollTop = box.scrollHeight;
 
   try {
-    // Map friendly model names to Pollinations model IDs
-    const modelMap = {
-      'openai':        'openai',
-      'openai-large':  'openai-large',
-      'llama':         'llama',
-      'mistral-large': 'mistral-large',
-      'mistral':       'mistral',
-      'llamalight':    'llamalight',
-    };
-    const modelId = modelMap[S.model] || 'openai';
-
-    // ── Try OpenAI-compatible streaming endpoint first ──
+    const modelId = S.model || 'openai';
     let full = '';
-    let usedStream = false;
 
+    // ── Method 1: POST to OpenAI-compatible endpoint (no streaming, JSON) ──
     try {
-      const res = await fetch(API_OPENAI, {
+      const r = await fetch(API_OPENAI, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: modelId,
           messages: [{ role:'system', content:SYSTEM }, ...conv.messages],
-          stream: true,
           private: true,
           seed: Math.floor(Math.random() * 99999)
         })
       });
-
-      if (res.ok) {
-        usedStream = true;
-        const bel = document.getElementById(tid+'b'); bel.innerHTML='';
-        let buf='';
-        const reader=res.body.getReader(), dec=new TextDecoder();
-        while (true) {
-          const {done,value} = await reader.read(); if (done) break;
-          buf += dec.decode(value, {stream:true});
-          const lines=buf.split('\n'); buf=lines.pop();
-          for (const line of lines) {
-            const t=line.trim();
-            if (!t.startsWith('data:')) continue;
-            const d=t.slice(5).trim();
-            if (d==='[DONE]') continue;
-            try {
-              const delta = JSON.parse(d).choices?.[0]?.delta?.content || '';
-              full += delta;
-            } catch(e) {
-              if (d && !d.startsWith('{')) full += d;
-            }
-            bel.innerHTML = renderMd(full);
-            bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
-            box.scrollTop = box.scrollHeight;
-          }
-        }
-        if (buf.trim() && !buf.trim().startsWith('data:')) {
-          full += buf;
-          const bel2 = document.getElementById(tid+'b');
-          if (bel2) { bel2.innerHTML=renderMd(full); bel2.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); }
+      if (r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const j = await r.json();
+          full = j.choices?.[0]?.message?.content || '';
+        } else {
+          full = await r.text();
         }
       }
-    } catch(streamErr) { /* fall through to plain text */ }
+    } catch(e) { /* try GET fallback */ }
 
-    // ── Fallback: plain-text POST (always works) ──
-    if (!full) {
-      const res2 = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role:'system', content:SYSTEM }, ...conv.messages],
-          model: modelId,
-          private: true,
-          seed: Math.floor(Math.random() * 99999)
-        })
+    // ── Method 2: GET endpoint (always works, Pollinations' original API) ──
+    if (!full || !full.trim()) {
+      // Build conversation string so the model has context
+      const recent = conv.messages.slice(-8); // last 8 msgs max
+      const history = recent.slice(0, -1)
+        .map(m => (m.role === 'user' ? 'Human' : 'Assistant') + ': ' + m.content)
+        .join('\n\n');
+      const lastMsg = recent[recent.length - 1].content;
+      const promptText = history ? `${history}\n\nHuman: ${lastMsg}` : lastMsg;
+
+      const params = new URLSearchParams({
+        model:   modelId,
+        system:  SYSTEM.slice(0, 600),
+        seed:    String(Math.floor(Math.random() * 99999)),
+        private: 'true',
+        nologo:  'true'
       });
-      if (!res2.ok) throw new Error(`API error ${res2.status} — try a different model`);
-      full = await res2.text();
-      const bel = document.getElementById(tid+'b');
-      if (bel) { bel.innerHTML=renderMd(full); bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); }
-      box.scrollTop = box.scrollHeight;
+      const getUrl = `${API_GET}${encodeURIComponent(promptText.slice(0, 1200))}?${params}`;
+      const r2 = await fetch(getUrl);
+      if (!r2.ok) throw new Error(`Could not reach AI (${r2.status}). Please try again.`);
+      full = await r2.text();
     }
 
-    if (!full) throw new Error('Empty response — please try again');
-    conv.messages.push({ role:'assistant', content:full }); save();
+    if (!full || !full.trim()) throw new Error('Empty response — please try again');
+
+    const bel = document.getElementById(tid+'b');
+    if (bel) {
+      bel.innerHTML = renderMd(full.trim());
+      bel.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+    }
+    box.scrollTop = box.scrollHeight;
+    conv.messages.push({ role:'assistant', content: full.trim() });
+    save();
 
   } catch(err) {
     const b = document.getElementById(tid+'b');
