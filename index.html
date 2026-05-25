@@ -584,7 +584,7 @@ async function sendMessage() {
     if(geminiKey && !full){
       try{
         const gemContents=msgs.filter(m=>m.role!=='system').map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
-        const gemModels=['gemini-1.5-flash','gemini-1.5-pro','gemini-pro'];
+        const gemModels=['gemini-2.0-flash','gemini-2.0-flash-exp','gemini-2.5-flash-preview-05-20'];
         for(const gm of gemModels){
           if(full) break;
           try{
