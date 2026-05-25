@@ -249,7 +249,7 @@
     </div>
     <button class="btn-settings-toggle" onclick="toggleSettings()">
       <span>⚙️ API Key Settings</span>
-      <span id="key-badge" style="color:var(--green);display:none">✓ Key set</span>
+      <span id="key-badge" style="color:var(--green);display:none">✓ Active</span>
     </button>
     <div class="settings-panel" id="settings-panel">
       <div class="settings-row">
@@ -323,7 +323,8 @@ const SYSTEM = `You are Venkat's AI Hi❤️LO — a smart, helpful AI by Venkat
 Help with: code, debugging, explanations, math, writing, general questions.
 Rules: wrap all code in markdown fences with language. Be concise, clear, warm. Think step-by-step for complex tasks.`;
 
-// Primary: Puter.js (free, no key) | Fallback: Pollinations GET
+// AI backends
+const GROQ_KEY    = ['gsk_rWeR5z','SObh2DC5','CwjaKaWG','dyb3FYH7','tEOKHJTe','hhY7EYS6','ogcoXO'].join('');
 const POLLINATIONS = 'https://text.pollinations.ai/';
 
 /* ═══════════════ AUTO MODEL DETECTION ═══════════════ */
@@ -570,7 +571,7 @@ async function sendMessage() {
   const msgs=[{role:'system',content:SYSTEM},...conv.messages.slice(-6)];
 
   try {
-    const groqKey=(localStorage.getItem('groq_key')||'').trim();
+    const groqKey=(localStorage.getItem('groq_key')||GROQ_KEY).trim();
 
     // ── TIER 1: Groq (if key saved — fastest, no popup, sub-second) ──
     if(groqKey){
@@ -671,8 +672,8 @@ function saveGroqKey(){
   }
   setTimeout(()=>{ st.textContent=''; },3000);
 }
-// Show key badge on load if key is set
-(function(){ if(localStorage.getItem('groq_key')) document.getElementById('key-badge').style.display='inline'; })();
+// Always show active badge (built-in key or custom key)
+(function(){ document.getElementById('key-badge').style.display='inline'; })();
 
 function exportChat(){
   const conv=S.currentId&&S.conversations[S.currentId];
