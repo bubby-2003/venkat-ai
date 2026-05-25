@@ -346,9 +346,9 @@
   <div class="sidebar-bottom">
     <span class="model-label">⚡ AI Model (all free)</span>
     <select class="model-select" id="model-select" onchange="changeModel(this.value)">
-      <option value="llama" selected>🦙 Llama 3.3 70B — Best for code</option>
+      <option value="openai" selected>⚡ GPT-4o mini — Fast & smart</option>
       <option value="openai-large">🤖 GPT-4o — Most powerful</option>
-      <option value="openai">⚡ GPT-4o mini — Fastest</option>
+      <option value="llama">🦙 Llama 3.3 70B — Best for code</option>
       <option value="mistral-large">🌊 Mistral Large — High quality</option>
       <option value="mistral">✨ Mistral Nemo — Balanced</option>
       <option value="llamalight">🚀 Llama 3.1 8B — Ultra fast</option>
@@ -431,9 +431,10 @@ Rules:
 - Be friendly, professional, and encouraging`;
 
 const API = 'https://text.pollinations.ai/';
+const API_OPENAI = 'https://text.pollinations.ai/openai';
 
 /* ── State ── */
-let S = { model:'llama', userName:'You', conversations:{}, currentId:null, streaming:false };
+let S = { model:'openai', userName:'You', conversations:{}, currentId:null, streaming:false };
 const save = () => { try { localStorage.setItem('vai2', JSON.stringify({...S, streaming:false})); } catch(e){} };
 const load = () => { try { const r=localStorage.getItem('vai2'); if(r) Object.assign(S, JSON.parse(r)); S.streaming=false; } catch(e){} };
 
@@ -605,31 +606,89 @@ async function sendMessage() {
   box.scrollTop = box.scrollHeight;
 
   try {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model:S.model, messages:[{role:'system',content:SYSTEM},...conv.messages], stream:true, private:true, seed:Math.floor(Math.random()*99999) })
-    });
-    if (!res.ok) throw new Error(`Error ${res.status}`);
-    const bel = document.getElementById(tid+'b'); bel.innerHTML='';
-    let full='', buf='';
-    const reader=res.body.getReader(), dec=new TextDecoder();
-    while (true) {
-      const {done,value} = await reader.read(); if (done) break;
-      buf += dec.decode(value, {stream:true});
-      const lines=buf.split('\n'); buf=lines.pop();
-      for (const line of lines) {
-        const t=line.trim(); if (!t.startsWith('data:')) continue;
-        const d=t.slice(5).trim(); if (d==='[DONE]') continue;
-        try { full += JSON.parse(d).choices?.[0]?.delta?.content||''; }
-        catch(e) { full += d; }
-        bel.innerHTML = renderMd(full);
-        bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
-        box.scrollTop = box.scrollHeight;
+    // Map friendly model names to Pollinations model IDs
+    const modelMap = {
+      'openai':        'openai',
+      'openai-large':  'openai-large',
+      'llama':         'llama',
+      'mistral-large': 'mistral-large',
+      'mistral':       'mistral',
+      'llamalight':    'llamalight',
+    };
+    const modelId = modelMap[S.model] || 'openai';
+
+    // ── Try OpenAI-compatible streaming endpoint first ──
+    let full = '';
+    let usedStream = false;
+
+    try {
+      const res = await fetch(API_OPENAI, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role:'system', content:SYSTEM }, ...conv.messages],
+          stream: true,
+          private: true,
+          seed: Math.floor(Math.random() * 99999)
+        })
+      });
+
+      if (res.ok) {
+        usedStream = true;
+        const bel = document.getElementById(tid+'b'); bel.innerHTML='';
+        let buf='';
+        const reader=res.body.getReader(), dec=new TextDecoder();
+        while (true) {
+          const {done,value} = await reader.read(); if (done) break;
+          buf += dec.decode(value, {stream:true});
+          const lines=buf.split('\n'); buf=lines.pop();
+          for (const line of lines) {
+            const t=line.trim();
+            if (!t.startsWith('data:')) continue;
+            const d=t.slice(5).trim();
+            if (d==='[DONE]') continue;
+            try {
+              const delta = JSON.parse(d).choices?.[0]?.delta?.content || '';
+              full += delta;
+            } catch(e) {
+              if (d && !d.startsWith('{')) full += d;
+            }
+            bel.innerHTML = renderMd(full);
+            bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
+            box.scrollTop = box.scrollHeight;
+          }
+        }
+        if (buf.trim() && !buf.trim().startsWith('data:')) {
+          full += buf;
+          const bel2 = document.getElementById(tid+'b');
+          if (bel2) { bel2.innerHTML=renderMd(full); bel2.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); }
+        }
       }
+    } catch(streamErr) { /* fall through to plain text */ }
+
+    // ── Fallback: plain-text POST (always works) ──
+    if (!full) {
+      const res2 = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role:'system', content:SYSTEM }, ...conv.messages],
+          model: modelId,
+          private: true,
+          seed: Math.floor(Math.random() * 99999)
+        })
+      });
+      if (!res2.ok) throw new Error(`API error ${res2.status} — try a different model`);
+      full = await res2.text();
+      const bel = document.getElementById(tid+'b');
+      if (bel) { bel.innerHTML=renderMd(full); bel.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); }
+      box.scrollTop = box.scrollHeight;
     }
-    if (buf.trim()&&!buf.trim().startsWith('data:')) { full+=buf; bel.innerHTML=renderMd(full); }
+
+    if (!full) throw new Error('Empty response — please try again');
     conv.messages.push({ role:'assistant', content:full }); save();
+
   } catch(err) {
     const b = document.getElementById(tid+'b');
     if (b) b.innerHTML = `<span style="color:#fca5a5">⚠ ${esc(err.message)}</span>`;
