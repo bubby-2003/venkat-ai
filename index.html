@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
   <meta name="theme-color" content="#0f1117"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-title" content="VenkatS AI HiLO"/>
-  <title>VenkatS AI HiLO — Smart AI Assistant</title>
-  <meta name="description" content="VenkatS AI HiLO — Free smart AI that auto-selects the best model for your question. No signup, no API key."/>
+  <meta name="apple-mobile-web-app-title" content="Venkat's AI Hi❤️LO"/>
+  <title>Venkat's AI Hi❤️LO — Smart AI Assistant</title>
+  <meta name="description" content="Venkat's AI Hi❤️LO — Free smart AI that auto-selects the best model. No signup, no API key."/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -209,8 +209,8 @@
       <div class="logo">
         <div class="logo-mark">V</div>
         <div class="logo-info">
-          <div class="logo-name"><span class="brand">VenkatS AI</span></div>
-          <div class="logo-sub">HiLO · Free · Smart · No Signup</div>
+          <div class="logo-name"><span class="brand">Venkat's AI Hi❤️LO</span></div>
+          <div class="logo-sub">Free · Smart · No Signup · No Key</div>
         </div>
       </div>
       <button id="close-sidebar" onclick="closeSidebar()">
@@ -232,7 +232,7 @@
       <span class="auto-text">Auto Model</span>
       <span class="auto-model-name" id="sidebar-model-name">GPT-4o mini</span>
     </div>
-    <div class="made-by">Built by <span>VenkatS</span> · HiLO Engine</div>
+    <div class="made-by">Built by <span>Venkat's AI Hi❤️LO</span></div>
   </div>
 </nav>
 
@@ -269,7 +269,7 @@
       <span class="mode-auto-text" id="mode-auto-text">Type to auto-select model</span>
     </div>
     <div class="input-wrapper">
-      <textarea id="user-input" placeholder="Ask VenkatS AI HiLO anything…" rows="1"
+      <textarea id="user-input" placeholder="Ask Venkat's AI Hi❤️LO anything…" rows="1"
         onkeydown="handleKey(event)" oninput="handleInput(this)"></textarea>
       <div class="input-footer">
         <div class="input-footer-left">
@@ -291,22 +291,9 @@
 
 <script>
 /* ═══════════════ SYSTEM ═══════════════ */
-const SYSTEM = `You are VenkatS AI HiLO — a highly intelligent, friendly AI assistant created by VenkatS. "HiLO" means you can handle both High-complexity and Low-complexity tasks equally well.
-
-You specialize in:
-- Writing perfect, production-ready code in any language
-- Debugging and fixing errors with clear explanations
-- Explaining complex topics in simple, clear language
-- Code reviews, architecture, system design
-- Math, reasoning, data analysis
-- Creative writing, brainstorming, and general knowledge
-
-Core rules:
-- ALWAYS wrap code in fenced markdown blocks with language (e.g. \`\`\`python)
-- Think step by step for complex problems
-- Be concise but complete — no unnecessary padding
-- Be warm, encouraging and professional
-- Sign responses with personality when appropriate`;
+const SYSTEM = `You are Venkat's AI Hi❤️LO — a smart, helpful AI by Venkat. Hi❤️LO handles High & Low complexity tasks.
+Help with: code, debugging, explanations, math, writing, general questions.
+Rules: wrap all code in markdown fences with language. Be concise, clear, warm. Think step-by-step for complex tasks.`;
 
 const API_GET    = 'https://text.pollinations.ai/';
 const API_OPENAI = 'https://text.pollinations.ai/openai';
@@ -426,8 +413,8 @@ function renderMessages() {
 }
 function welcomeHTML(){return`<div id="welcome">
   <div class="welcome-mark">V</div>
-  <div class="hilo-tag">HiLO ENGINE</div>
-  <h1>Hi, I'm <span class="brand">VenkatS AI</span> 👋</h1>
+  <div class="hilo-tag">Hi❤️LO ENGINE</div>
+  <h1>Hi, I'm <span class="brand">Venkat's AI Hi❤️LO</span> 👋</h1>
   <p class="tagline">I <strong>auto-select the best AI model</strong> for every question — no manual switching needed. Code, math, creative writing, or just chat.</p>
   <div class="chips">
     <span class="chip g">✦ 100% Free</span><span class="chip">No API Key</span><span class="chip">No Signup</span>
@@ -452,7 +439,7 @@ function buildMsg(m, idx) {
     <button class="action-btn" onclick="quickAction('simplify','${escAttr(m.content)}')">✂️ Simplify</button>
     <button class="action-btn" onclick="copyText('${escAttr(m.content)}')">📋 Copy</button>
   </div>`:'';
-  return`<div class="msg-row">${av}<div class="msg-content"><div class="msg-meta"><span class="msg-name ${u?'user':'ai'}">${u?esc(S.userName||'You'):'VenkatS AI HiLO'}</span>${modelBadge}</div>${body}${actions}</div></div>`;
+  return`<div class="msg-row">${av}<div class="msg-content"><div class="msg-meta"><span class="msg-name ${u?'user':'ai'}">${u?esc(S.userName||'You'):'Venkat's AI Hi❤️LO'}</span>${modelBadge}</div>${body}${actions}</div></div>`;
 }
 
 function renderMd(txt) {
@@ -542,36 +529,39 @@ async function sendMessage() {
 
   const tid='T'+Date.now();
   const mInfo=MODELS[model]||MODELS['openai'];
-  box.insertAdjacentHTML('beforeend',`<div class="msg-row" id="${tid}"><div class="msg-avatar ai">🤖</div><div class="msg-content"><div class="msg-meta"><span class="msg-name ai">VenkatS AI HiLO</span><span class="msg-model-badge">${mInfo.label}</span></div><div class="msg-body" id="${tid}b"><div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Thinking with ${mInfo.label}…</span></div></div></div>`);
+  box.insertAdjacentHTML('beforeend',`<div class="msg-row" id="${tid}"><div class="msg-avatar ai">🤖</div><div class="msg-content"><div class="msg-meta"><span class="msg-name ai">Venkat's AI Hi❤️LO</span><span class="msg-model-badge">${mInfo.label}</span></div><div class="msg-body" id="${tid}b"><div class="typing-indicator"><span></span><span></span><span></span></div><span class="thinking-label">Thinking with ${mInfo.label}…</span></div></div></div>`);
   box.scrollTop=box.scrollHeight;
 
   let full='';
   try {
-    // ── Method 1: POST OpenAI-compatible (no streaming, JSON) ──
-    try {
-      const r=await fetch(API_OPENAI,{
+    // ── FAST: GET endpoint directly (fastest, no round-trip overhead) ──
+    const recent = conv.messages.slice(-6); // last 6 msgs for context
+    const history = recent.slice(0,-1)
+      .map(m=>(m.role==='user'?'Human':'Assistant')+': '+m.content)
+      .join('\n\n');
+    const lastMsg = recent[recent.length-1].content;
+    const promptText = history ? `${history}\n\nHuman: ${lastMsg}` : lastMsg;
+    const params = new URLSearchParams({
+      model, system: SYSTEM.slice(0,500),
+      seed: String(Math.floor(Math.random()*99999)),
+      private:'true', nologo:'true'
+    });
+    const getUrl = `${API_GET}${encodeURIComponent(promptText.slice(0,1000))}?${params}`;
+
+    let r = await fetch(getUrl);
+
+    // ── Fallback: POST OpenAI if GET fails ──
+    if(!r.ok){
+      const r2=await fetch(API_OPENAI,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model,messages:[{role:'system',content:SYSTEM},...conv.messages],private:true,seed:Math.floor(Math.random()*99999)})
       });
-      if(r.ok){
-        const ct=r.headers.get('content-type')||'';
-        if(ct.includes('application/json')){const j=await r.json();full=j.choices?.[0]?.message?.content||'';}
-        else full=await r.text();
-      }
-    }catch(e){}
-
-    // ── Method 2: GET endpoint fallback ──
-    if(!full||!full.trim()){
-      const recent=conv.messages.slice(-8);
-      const history=recent.slice(0,-1).map(m=>(m.role==='user'?'Human':'Assistant')+': '+m.content).join('\n\n');
-      const lastMsg=recent[recent.length-1].content;
-      const promptText=history?`${history}\n\nHuman: ${lastMsg}`:lastMsg;
-      const params=new URLSearchParams({model,system:SYSTEM.slice(0,600),seed:String(Math.floor(Math.random()*99999)),private:'true',nologo:'true'});
-      const getUrl=`${API_GET}${encodeURIComponent(promptText.slice(0,1200))}?${params}`;
-      const r2=await fetch(getUrl);
       if(!r2.ok) throw new Error(`AI unavailable (${r2.status}) — please try again`);
-      full=await r2.text();
+      const ct=r2.headers.get('content-type')||'';
+      full = ct.includes('application/json') ? (await r2.json()).choices?.[0]?.message?.content||'' : await r2.text();
+    } else {
+      full = await r.text();
     }
 
     if(!full||!full.trim()) throw new Error('Empty response — please try again');
@@ -613,7 +603,7 @@ function showToast(msg,type=''){const t=document.getElementById('toast');t.textC
 function exportChat(){
   const conv=S.currentId&&S.conversations[S.currentId];
   if(!conv?.messages?.length){showToast('No messages to export','error');return;}
-  const md=conv.messages.map(m=>`**${m.role==='user'?(S.userName||'You'):'VenkatS AI HiLO'}${m.model?' ['+MODELS[m.model]?.label+']':''}:**\n\n${m.content}`).join('\n\n---\n\n');
+  const md=conv.messages.map(m=>`**${m.role==='user'?(S.userName||'You'):'Venkat's AI Hi❤️LO'}${m.model?' ['+MODELS[m.model]?.label+']':''}:**\n\n${m.content}`).join('\n\n---\n\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));a.download=(conv.title||'chat').replace(/[^a-z0-9]/gi,'_')+'.md';a.click();showToast('Exported!','success');
 }
 </script>
